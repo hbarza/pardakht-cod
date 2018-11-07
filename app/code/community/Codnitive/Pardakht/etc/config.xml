@@ -1,0 +1,294 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+/**
+ * CODNITIVE
+ *
+ * NOTICE OF LICENSE
+ *
+ * This source file is subject to the EULA
+ * that is bundled with this package in the file LICENSE_EULA.html.
+ * It is also available through the world-wide-web at this URL:
+ * http://www.codnitive.com/en/terms-of-service-softwares/
+ * http://www.codnitive.com/fa/terms-of-service-softwares/
+ *
+ * DISCLAIMER
+ *
+ * Do not edit or add to this file if you wish to upgrade to newer
+ * versions in the future.
+ *
+ * @category   Codnitive
+ * @package    Codnitive_Pardakht
+ * @author     Hassan Barza <support@codnitive.com>
+ * @copyright  Copyright (c) 2012 CODNITIVE Co. (http://www.codnitive.com)
+ * @license    http://www.codnitive.com/en/terms-of-service-softwares/ End User License Agreement (EULA 1.0)
+ */
+-->
+
+<config>
+	<modules>
+		<Codnitive_Pardakht>
+			<version>1.0.00</version>
+			<title>Pardakht COD</title>
+			<link><![CDATA[http://www.codnitive.com/]]></link>
+			<codPool>community</codPool>
+		</Codnitive_Pardakht>
+	</modules>
+	<global>
+		<blocks>
+			<pardakht>
+				<class>Codnitive_Pardakht_Block</class>
+			</pardakht>
+			<checkout>
+				<rewrite>
+					<onepage_billing>Codnitive_Pardakht_Block_Checkout_Onepage_Billing</onepage_billing>
+					<onepage_shipping>Codnitive_Pardakht_Block_Checkout_Onepage_Shipping</onepage_shipping>
+					<cart_shipping>Codnitive_Pardakht_Block_Checkout_Cart_Shipping</cart_shipping>
+				</rewrite>
+			</checkout>
+			<customer>
+				<rewrite>
+					<form_register>Codnitive_Pardakht_Block_Customer_Form_Register</form_register>
+					<address_edit>Codnitive_Pardakht_Block_Customer_Address_Edit</address_edit>
+				</rewrite>
+			</customer>
+		</blocks>
+		<helpers>
+			<pardakht>
+				<class>Codnitive_Pardakht_Helper</class>
+			</pardakht>
+		</helpers>
+		<models>
+			<pardakht>
+				<class>Codnitive_Pardakht_Model</class>
+				<resourceModel>pardakht_resource</resourceModel>
+			</pardakht>
+			<pardakht_resource>
+				<class>Codnitive_Pardakht_Model_Resource</class>
+				<deprecatedNode>pardakht_mysql4</deprecatedNode>
+				<entities>
+					<setorder>
+						<table>codnitive_pardakht_setorder</table>
+					</setorder>
+				</entities>
+			</pardakht_resource>
+		</models>
+		<resources>
+			<pardakht_setup>
+				<setup>
+					<module>Codnitive_Pardakht</module>
+					<class>Codnitive_Pardakht_Model_Resource_Setup</class>
+<!--					<class>Mage_Customer_Model_Entity_Setup</class>-->
+				</setup>
+				<connection>
+					<use>core_setup</use>
+				</connection>
+			</pardakht_setup>
+			<pardakht_write>
+				<connection>
+					<use>core_write</use>
+				</connection>
+			</pardakht_write>
+			<pardakht_read>
+				<connection>
+					<use>core_read</use>
+				</connection>
+			</pardakht_read>
+		</resources>
+		<sales>
+			<shipping>
+				<carriers>
+					<pardakht>
+						<class>Codnitive_Pardakht_Model_Carrier_Post</class>
+					</pardakht>
+				</carriers>
+			</shipping>
+		</sales>
+		<fieldsets>
+			<sales_copy_order_billing_address>
+				<pardakht_region_id><to_order>*</to_order></pardakht_region_id>
+			</sales_copy_order_billing_address>
+			<sales_copy_order_shipping_address>
+				<pardakht_region_id><to_order>*</to_order></pardakht_region_id>
+			</sales_copy_order_shipping_address>
+			<sales_convert_quote_address>
+				<pardakht_region_id><to_order_address>*</to_order_address><to_customer_address>*</to_customer_address></pardakht_region_id>
+			</sales_convert_quote_address>
+			<sales_convert_order_address>
+				<pardakht_region_id><to_quote_address>*</to_quote_address></pardakht_region_id>
+			</sales_convert_order_address>
+			<customer_address>
+				 <pardakht_region_id><to_quote_address>*</to_quote_address></pardakht_region_id>
+			</customer_address>
+			<checkout_onepage_billing>
+				<pardakht_region_id><to_customer>*</to_customer></pardakht_region_id>
+			</checkout_onepage_billing>
+
+			<sales_copy_order_billing_address>
+				<pardakht_city><to_order>*</to_order></pardakht_city>
+			</sales_copy_order_billing_address>
+			<sales_copy_order_shipping_address>
+				<pardakht_city><to_order>*</to_order></pardakht_city>
+			</sales_copy_order_shipping_address>
+			<sales_convert_quote_address>
+				<pardakht_city><to_order_address>*</to_order_address><to_customer_address>*</to_customer_address></pardakht_city>
+			</sales_convert_quote_address>
+			<sales_convert_order_address>
+				<pardakht_city><to_quote_address>*</to_quote_address></pardakht_city>
+			</sales_convert_order_address>
+			<customer_address>
+				 <pardakht_city><to_quote_address>*</to_quote_address></pardakht_city>
+			</customer_address>
+			<checkout_onepage_billing>
+				<pardakht_city><to_customer>*</to_customer></pardakht_city>
+			</checkout_onepage_billing>
+		</fieldsets>
+		<!--<fieldsets>
+			<sales_convert_quote_address>
+				<pardakht_city>
+					<to_order_address>*</to_order_address>
+					<to_customer_address>*</to_customer_address>
+				</pardakht_city>
+			</sales_convert_quote_address>
+			<customer_address>
+				<pardakht_city>
+					<to_quote_address>*</to_quote_address>
+				</pardakht_city>
+			</customer_address>
+		</fieldsets>-->
+	</global>
+
+	<admin>
+		<fieldsets>
+			<customer_dataflow>
+				<pardakht_region_id><billing>1</billing><shipping>1</shipping></pardakht_region_id>
+				<pardakht_city><billing>1</billing><shipping>1</shipping></pardakht_city>
+			</customer_dataflow>
+		</fieldsets>
+	</admin>
+
+	<adminhtml>
+		<!--<layout>
+			<updates>
+				<pardakht>
+					<file>codnitive/pardakht.xml</file>
+				</pardakht>
+			</updates>
+		</layout>-->
+		<translate>
+			<modules>
+				<Codnitive_Pardakht>
+					<files>
+						<default>Codnitive_Pardakht.csv</default>
+					</files>
+				</Codnitive_Pardakht>
+			</modules>
+		</translate>
+		<!--<events>
+			<controller_action_predispatch>
+				<observers>
+					<codnitive_notification_check>
+						<type>model</type>
+						<class>notification/feed_updates</class>
+						<method>checkExtensionsFeed</method>
+					</codnitive_notification_check>
+				</observers>
+			</controller_action_predispatch>
+		</events>-->
+	</adminhtml>
+
+	<frontend>
+		<routers>
+			<!--<pardakht>
+				<use>standard</use>
+				<args>
+					<module>Codnitive_Pardakht</module>
+					<frontName>pardakht</frontName>
+				</args>
+			</pardakht>-->
+			<checkout>
+				<args>
+					<modules>
+						<Codnitive_Pardakht_Override before="Mage_Checkout">Codnitive_Pardakht_Override_Checkout</Codnitive_Pardakht_Override>
+					</modules>
+				</args>
+			</checkout>
+		</routers>
+		<events>
+			<checkout_onepage_controller_success_action>
+				<observers>
+					<codnitive_pardakht_onepage_success_action>
+						<type>model</type>
+						<class>pardakht/checkout_observer</class>
+						<method>sendOrderToPardakht</method>
+					</codnitive_pardakht_onepage_success_action>
+				</observers>
+			</checkout_onepage_controller_success_action>
+		</events>
+		<layout>
+			<updates>
+				<pardakht>
+					<file>codnitive/pardakht.xml</file>
+				</pardakht>
+			</updates>
+		</layout>
+		<translate>
+			<modules>
+				<Codnitive_Pardakht>
+					<files>
+						<default>Codnitive_Pardakht.csv</default>
+					</files>
+				</Codnitive_Pardakht>
+			</modules>
+		</translate>
+	</frontend>
+
+	<default>
+		<codnitivepaymentmethods>
+			<pardakht>
+				<active>0</active>
+				<jquery>1</jquery>
+				<shipping_types>1,2</shipping_types>
+				<payment_types>pardakht</payment_types>
+				<chkfrq>518400</chkfrq>
+				<frtrn>1</frtrn>
+			</pardakht>
+		</codnitivepaymentmethods>
+		<carriers>
+			<pardakht>
+				<model>pardakht/carrier_post</model>
+				<active>1</active>
+				<title>Pardakht</title>
+				<orig_region>21</orig_region>
+				<orig_city>1-تهران</orig_city>
+				<include_virtual_price>0</include_virtual_price>
+				<shipping_sallowspecific>1</shipping_sallowspecific>
+				<shipping_specificcountry>IR</shipping_specificcountry>
+				<shipping_showmethod>0</shipping_showmethod>
+<!--				<shipping_specificerrmsg><![CDATA[This shipping method is currently unavailable. If you would like to ship using this shipping method, please contact us.]]></shipping_specificerrmsg>-->
+			</pardakht>
+		</carriers>
+		<payment>
+			<pardakht>
+				<model>pardakht/method_cashondelivery</model>
+				<active>1</active>
+				<title>Pardakht Cash On Delivery</title>
+				<allowspecific>1</allowspecific>
+				<specificcountry>IR</specificcountry>
+			</pardakht>
+			<!--<pardakhtonline>
+				<model>pardakht/method_online</model>
+				<active>1</active>
+				<title>Pardakht Online Payment</title>
+				<allowspecific>1</allowspecific>
+				<specificcountry>IR</specificcountry>
+			</pardakhtonline>
+			<pardakhtmoneyorder>
+				<model>pardakht/method_moneyorder</model>
+				<active>1</active>
+				<title>Pardakht Money Order Payment</title>
+				<allowspecific>1</allowspecific>
+				<specificcountry>IR</specificcountry>
+			</pardakhtmoneyorder>-->
+		</payment>
+	</default>
+</config>

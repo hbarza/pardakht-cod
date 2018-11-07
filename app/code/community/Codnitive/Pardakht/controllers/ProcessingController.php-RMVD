@@ -1,0 +1,488 @@
+<?php
+/**
+ * CODNITIVE
+ *
+ * NOTICE OF LICENSE
+ *
+ * This source file is subject to the EULA
+ * that is bundled with this package in the file LICENSE_EULA.html.
+ * It is also available through the world-wide-web at this URL:
+ * http://www.codnitive.com/en/terms-of-service-softwares/
+ * http://www.codnitive.com/fa/terms-of-service-softwares/
+ *
+ * DISCLAIMER
+ *
+ * Do not edit or add to this file if you wish to upgrade to newer
+ * versions in the future.
+ *
+ * @category   Codnitive
+ * @package    Codnitive_Pardakht
+ * @author     Hassan Barza <support@codnitive.com>
+ * @copyright  Copyright (c) 2012 CODNITIVE Co. (http://www.codnitive.com)
+ * @license    http://www.codnitive.com/en/terms-of-service-softwares/ End User License Agreement (EULA 1.0)
+ */
+
+class Codnitive_Pardakht_ProcessingController extends Mage_Core_Controller_Front_Action
+{
+
+//	protected $_successBlockType     = 'pardakht/transaction_success';
+	protected $_failureBlockType     = 'pardakht/transaction_failure';
+//	protected $_cancelBlockType      = 'pardakht/transaction_cancel';
+
+//	protected $_order;
+//	protected $_transaction;
+	protected $_paymentInst;
+	protected $_orderState;
+	protected $_orderStatus;
+
+	protected $_helper;
+
+	public function _construct()
+	{
+		parent::_construct();
+		$this->_helper = Mage::helper('pardakht');
+	}
+
+	protected function _getCheckout()
+	{
+		return Mage::getSingleton('checkout/session');
+	}
+
+	protected function _getPendingPaymentStatus()
+	{
+		return $this->_getHelper()->getPendingPaymentStatus();
+	}
+
+	protected function _getHelper()
+	{
+		if (is_null($this->_helper)) {
+			$this->_helper = Mage::helper('pardakht');
+		}
+		return $this->_helper;
+	}
+
+	protected function _expireAjax()
+	{
+		if (!$this->_getCheckout()->getQuote()->hasItems()) {
+			$this->getResponse()->setHeader('HTTP/1.1', '403 Session Expired');
+			exit;
+		}
+	}
+
+	public function redirectAction()
+	{
+		try {
+			$session = $this->_getCheckout();
+			$order = Mage::getModel('sales/order');
+
+			$order->loadByIncrementId($session->getLastRealOrderId());
+
+			if (!$order->getId()) {
+				Mage::throwException('No order for processing found');
+				return;
+			}
+
+			/*$transactionCheck = Mage::getModel('tejaratgateway/transaction');
+			$orderTransaction = $transactionCheck->loadByOrderId($order->getId());
+			if ($orderTransaction->getId() || $order->hasInvoices()) {
+				$session->addError($this->_getHelper()->__('This order has payment info'));
+				$this->_redirect('checkout/cart');
+				return;
+			}*/
+
+			if ($order->getState() != Mage_Sales_Model_Order::STATE_PENDING_PAYMENT) {
+				$order->setState(
+						Mage_Sales_Model_Order::STATE_PENDING_PAYMENT,
+						$this->_getPendingPaymentStatus(),
+						$this->_getHelper()->__('Customer was redirected to Pardakht gateway.')
+				)->save();
+			}
+
+			if ($session->getQuoteId() && $session->getLastSuccessQuoteId()) {
+				$session->setPardakhtGwQuoteId($session->getQuoteId());
+				$session->setPardakhtGwSuccessQuoteId($session->getLastSuccessQuoteId());
+				$session->setPardakhtGwRealOrderId($session->getLastRealOrderId());
+				$session->getQuote()->setIsActive(false)->save();
+				$session->clear();
+			}
+
+			$this->loadLayout();
+			$this->renderLayout();
+			return;
+		}
+		catch (Mage_Core_Exception $e) {
+			$this->_catchMessages($e->getMessage());
+		}
+		catch (Exception $e) {
+			$this->_catchMessages('An error occurred before redirection to Pardakht gateway.',
+					'Pardakht Gateway redirection error: ' . $e->getMessage(),
+					$e
+			);
+		}
+		$this->_redirect('checkout/cart');
+	}
+
+	public function responseAction()
+	{
+		try {
+			$response = $this->_checkResponse();
+
+			if ($this->_order->getState() == Mage_Sales_Model_Order::STATE_PENDING_PAYMENT) {
+				$this->_getNewOrderStatus();
+				$this->_order->setState(
+						$this->_orderState, $this->_orderStatus, $this->_getHelper()->__('Customer back from Saman gateway.'), false
+				);
+			}
+
+			if ($response['State'] === 'Canceled By User') {
+				$this->_processCancel($response);
+				return;
+			}
+
+//			$this->_responseValidation($response);
+			$api = Mage::getModel('pardakht/api');
+			$api->verifyOnlinePayment();
+		}
+		catch (Mage_Core_Exception $e) {
+//            $this->_getCheckout()->addError($this->_getHelper()->__('Transaction response check: An error occurred in transaction.'));
+//            $this->_debug('Saman response error: ' . $e->getMessage());
+			$this->_catchMessages('Transaction response check: An error occurred in transaction.',
+					'Saman response error: ' . $e->getMessage());
+			$this->_failureBlock();
+		}
+		catch (Exception $e) {
+//            $this->_getCheckout()->addError($this->_getHelper()->__('Transaction response: An unknown error occurred in transaction.'));
+//            $this->_debug('Saman response error: ' . $e->getMessage());
+			$this->_catchMessages('Transaction response: An unknown error occurred in transaction.',
+					'Saman response error: ' . $e->getMessage());
+			$this->_failureBlock();
+		}
+	}
+
+//	public function successAction()
+//	{
+//		try {
+//			$session = $this->_getCheckout();
+//			$session->setQuoteId($session->getSamanGwQuoteId(true));
+//			$session->setLastSuccessQuoteId($session->getSamanGwSuccessQuoteId(true));
+//			$session->unsetSamanGwQuoteId();
+//			$session->unsetSamanGwSuccessQuoteId();
+//			$session->unsetSamanGwRealOrderId();
+//			$session->unsSamanGwRealOrderId();
+//			$this->_redirect('checkout/onepage/success');
+//			return;
+//		}
+//		catch (Mage_Core_Exception $e) {
+////            $this->_getCheckout()->addError($e->getMessage());
+//			$this->_catchMessages($e->getMessage());
+//		}
+//		catch (Exception $e) {
+////            $this->_debug('Saman gateway payment success error: ' . $e->getMessage());
+////            Mage::logException($e);
+//			$this->_catchMessages(null, 'Saman gateway payment success error: ' . $e->getMessage(), $e);
+//		}
+//		$this->_redirect('checkout/cart');
+//	}
+//
+//	public function cancelAction()
+//	{
+//		$session = $this->_getCheckout();
+//		if ($quoteId = $session->getSamanGwQuoteId()) {
+//			$quote = Mage::getModel('sales/quote')->load($quoteId);
+//			if ($quote->getId()) {
+//				$quote->setIsActive(true)->save();
+//				$session->setQuoteId($quoteId);
+//			}
+//		}
+//		$session->unsetSamanGwQuoteId();
+//		$session->unsetSamanGwSuccessQuoteId();
+//		$session->unsetSamanGwRealOrderId();
+//		$session->unsSamanGwRealOrderId();
+//		$session->addError($this->_getHelper()->__('The order has been canceled.'));
+//		$this->_redirect('checkout/cart');
+//	}
+
+	protected function _checkResponse()
+	{
+		if (!$this->getRequest()->isPost()) {
+			Mage::throwException('Wrong request type.');
+		}
+
+		$request = $this->getRequest()->getParams();
+		if (empty($request)) {
+			Mage::throwException('Request doesn\'t contain any parameter.');
+		}
+
+		if (!isset($request['ResNum'])) {
+			Mage::throwException('Transaction Reservation Number doesn\'t set.');
+		}
+
+		if (!isset($request['MID'])) {
+			Mage::throwException('Merchant ID doesn\'t set.');
+		}
+		if ($request['MID'] !== Mage::getModel('samangateway/config')->getMerchantId()) {
+			Mage::throwException('Merchant ID is not valid.');
+		}
+
+		if (!isset($request['State'])) {
+			Mage::throwException('Order # ' . $request['ResNum'] . ': Transaction State doesn\'t set.');
+		}
+
+		$this->_order = Mage::getModel('sales/order')->loadByIncrementId($request['ResNum']);
+		if (!$this->_order->getId()) {
+			Mage::throwException('Order not found');
+		}
+
+		$this->_paymentInst = $this->_order->getPayment()->getMethodInstance();
+
+		return $request;
+	}
+
+//	protected function _responseValidation($response)
+//	{
+//		if (!isset($response['RefNum'])) {
+//			Mage::throwException('Order # ' . $response['ResNum'] . ': Transaction Reference Number doesn\'t set.');
+//		}
+//
+//		$check = Mage::getModel('samangateway/transaction');
+//		$check->load($response['RefNum'], 'reference_number');
+//		if ($check->getId()) {
+//			$error = $this->_getHelper()->__('An order payment with this reference number is alredy exists. Reference #: %s', $response['RefNum']);
+//			$this->_getCheckout()->addError($error);
+//			Mage::throwException('Order # ' . $response['ResNum'] . ': An order with this reference number was alredy exists. Reference #: ' . $response['RefNum']);
+//		}
+//
+//		$transaction = Mage::getModel('samangateway/transaction');
+//		$transaction->setOrderId($this->_order->getId())
+//				->setOrderRealId($response['ResNum'])
+//				->setReferenceNumber($response['RefNum'])
+//				->setTransactionState($response['State'])
+//				->save();
+//
+//		if (empty($response['RefNum'])) {
+//			$error = $this->_getHelper()->__('An error occurred by customer.');
+//			$this->_getCheckout()->addError($error);
+//			Mage::throwException('Transaction Validation: An error occurred by customer, for order #: ' .  $response['ResNum']);
+//		}
+//
+//		if ($response['State'] !== 'OK') {
+//			$error = $this->_getHelper()->getResponseError($response['State']);
+//			$this->_getCheckout()->addError($error);
+//			Mage::throwException('Order #: ' . $response['ResNum'] . ': Transaction Validation: ' .  $response['State']);
+//		}
+//
+//		if ($response['State'] === 'OK') {
+//			$this->_transactionVerification($response);
+//		}
+//	}
+//
+//	protected function _transactionVerification($response)
+//	{
+//		$transaction = Mage::getModel('samangateway/transaction');
+//		$result      = $transaction->verifyTransaction($response);
+//
+//		if (($result !== 0) && !$result) {
+//			for ($i = 0; $i < 3; $i++) {
+//				sleep(10);
+//				$result = $transaction->verifyTransaction($response);
+//				if ($result) {
+//					break;
+//				}
+//			}
+//			if (!$result) {
+//				$error = $this->_getHelper()->__('Order was canceled because couldn\'t connect to Saman Bank gateway to verify transaction.');
+//				$this->_getCheckout()->addError($error);
+//				$this->_reverseTransaction($response);
+//				Mage::throwException('Transaction Verification: error occurred on verification SOAP connection for order #: ' .  $response['ResNum'] . '. Revers status: ' . $this->_getHelper()->getStatus($reverseResult));
+//			}
+//		}
+//
+//		if ($result <= 0) {
+//			$error = $this->_getHelper()->__('Error in payment transaction verification. Status: %s', $this->_getHelper()->getStatus($result));
+//			$this->_getCheckout()->addError($error);
+//			Mage::throwException('Order # ' . $response['ResNum'] . '. Transaction Verification: payment transaction verification is not valid. Status code: ' . $result['status']);
+//		}
+//
+//		if ($result > 0) {
+//			$this->_checkAmount($response, $result);
+//		}
+//	}
+//
+//	protected function _checkAmount($response, $result)
+//	{
+//		$grandTotal = (int) number_format($this->_order->getGrandTotal(), 0, '', '');
+//		if ($result < $grandTotal) {
+//			$lessAmount = Mage::helper('core')->formatPrice($grandTotal - $result);
+//			$error = $this->_getHelper()->__('Order was canceled because paid amount is less than order grand total. You have to paid %s less than order total amount.', $lessAmount);
+//			$this->_getCheckout()->addError($error);
+//			$this->_reverseTransaction($response);
+//
+//			$this->_holdOrder($this->_getHelper()->__('Payment was holded because of less paid amount. Less amount: %s', $lessAmount));
+//
+//			Mage::throwException('Transaction Verification: Transaction reverse requested for order #: ' .  $response['ResNum'] . ', because of less paid amount: ' . $grandTotal - $result . '. Revers status: ' . $this->_getHelper()->getStatus($reverseResult));
+//		}
+//
+//		if ($result > $grandTotal) {
+//			$moreAmount = Mage::helper('core')->formatPrice($result - $grandTotal);
+//			$notice = $this->_getHelper()->__('Please note that you have to paid %s more than the total amount of the order. Please contact us.', $moreAmount);
+//			$this->_getCheckout()->addNotice($notice);
+//
+//			$this->_holdOrder($this->_getHelper()->__('Payment was holded because of more paid amount. More amount: %s', $moreAmount));
+//
+//			Mage::throwException('Transaction Verification: Order #: ' .  $response['ResNum'] . 'holded because of more paid amount: ' . $result - $grandTotal . '.');
+//		}
+//
+//		if ($result == $grandTotal) {
+//			$this->_processSale();
+//		}
+//	}
+//
+//	protected function _processSale()
+//	{
+//		if ($this->_order->getState() == Mage_Sales_Model_Order::STATE_PENDING_PAYMENT) {
+//			$this->_getNewOrderStatus();
+//			$this->_order->setState(
+//					$this->_orderState, $this->_orderStatus, $this->_getHelper()->__('Customer payment was successful.'), false
+//			);
+//		}
+//
+//		$this->_order->sendNewOrderEmail();
+//		$this->_order->setEmailSent(true);
+//
+//		$this->_order->save();
+//
+//		$this->getResponse()->setBody(
+//			$this->getLayout()
+//				->createBlock($this->_successBlockType)
+//				->setOrder($this->_order)
+//				->toHtml()
+//		);
+//	}
+//
+//	protected function _processCancel($response)
+//	{
+//		if ($this->_order->canCancel()) {
+//			$this->_order->cancel();
+//			$this->_order->addStatusToHistory(
+//					Mage_Sales_Model_Order::STATE_CANCELED, $this->_getHelper()->__('Payment was canceled.')
+//			);
+//			$this->_order->save();
+//		}
+//
+//		$check = Mage::getModel('samangateway/transaction');
+//		$check->load($response['RefNum'], 'reference_number');
+//		if ($check->getId()) {
+//			$error = $this->_getHelper()->__('An order payment with this reference number is alredy exists. Reference #: %s', $response['RefNum']);
+//			$this->_getCheckout()->addError($error);
+//			Mage::throwException('Order # ' . $response['ResNum'] . ': An order with this reference number was alredy exists. Reference #: ' . $response['RefNum']);
+//		}
+//
+//		$transaction = Mage::getModel('samangateway/transaction');
+//		$transaction->setOrderId($this->_order->getId())
+//				->setOrderRealId($response['ResNum'])
+//				->setReferenceNumber($response['RefNum'])
+//				->setTransactionState($response['State'])
+//				->save();
+//
+//		$this->getResponse()->setBody(
+//			$this->getLayout()
+//				->createBlock($this->_cancelBlockType)
+//				->setOrder($this->_order)
+//				->toHtml()
+//		);
+//	}
+//
+//	protected function _holdOrder($message)
+//	{
+//		if ($this->_order->getState() != Mage_Sales_Model_Order::STATE_HOLDED) {
+//			$this->_order->setState(
+//					Mage_Sales_Model_Order::STATE_HOLDED,
+//					Mage_Sales_Model_Order::STATE_HOLDED,
+//					$message
+//			)->save();
+//		}
+//	}
+//
+//	protected function _reverseTransaction($response)
+//	{
+//		$transaction = Mage::getModel('samangateway/transaction');
+//		$reverseResult = $transaction->reverseTransaction($response, $this->_order);
+//
+//		$error = $this->_getHelper()->__('Transaction reverse requested. Status: %s', $this->_getHelper()->__($this->_getHelper()->getStatus($reverseResult)));
+//		$this->_getCheckout()->addError($error);
+//
+//	}
+
+	/**
+	 * Print, log and save messages in catch
+	 *
+	 * @param string $sessionMessage
+	 * @param string $debugMessage
+	 * @param object $logE  Exception
+	 */
+	protected function _catchMessages($sessionMessage = null, $debugMessage = null, $logE = null)
+	{
+		if (!is_null($sessionMessage)) {
+			$this->_getCheckout()->addError($this->_getHelper()->__($sessionMessage));
+		}
+
+		if (!is_null($debugMessage)) {
+			$this->_debug($debugMessage);
+		}
+
+		if (!is_null($logE)) {
+			Mage::logException($logE);
+		}
+	}
+
+	protected function _failureBlock()
+	{
+		$this->getResponse()->setBody(
+				$this->getLayout()
+				->createBlock($this->_failureBlockType)
+				->toHtml()
+		);
+	}
+
+	protected function _getNewOrderStatus()
+	{
+		$newOrderStatus = $this->_paymentInst->getConfigData('order_status');
+		switch ($newOrderStatus) {
+			case 'pending':
+				$this->_orderState = Mage_Sales_Model_Order::STATE_NEW;
+				$this->_orderStatus = 'pending';
+				break;
+			case 'processing':
+				$this->_orderState = Mage_Sales_Model_Order::STATE_PROCESSING;
+				$this->_orderStatus = 'processing';
+				break;
+			case 'complete':
+				$this->_orderState = Mage_Sales_Model_Order::STATE_PROCESSING;
+				$this->_orderStatus = 'complete';
+				break;
+			case 'closed':
+				$this->_orderState = Mage_Sales_Model_Order::STATE_PROCESSING;
+				$this->_orderStatus = 'processing';
+				break;
+			case 'canceled':
+				$this->_orderState = Mage_Sales_Model_Order::STATE_PROCESSING;
+				$this->_orderStatus = 'processing';
+				break;
+			case 'holded':
+				$this->_orderState = Mage_Sales_Model_Order::STATE_HOLDED;
+				$this->_orderStatus = 'holded';
+				break;
+			default:
+				$this->_orderState = Mage_Sales_Model_Order::STATE_NEW;
+				$this->_orderStatus = 'pending';
+		}
+	}
+
+	protected function _debug($debugData)
+	{
+		if (Mage::getModel('pardakht/config')->getDebugFlag()) {
+			Mage::log($debugData, null, 'codnitive_' . Mage::getModel('pardakht/method_online')->getCode() . '_payment_online.log', true);
+		}
+	}
+
+}
